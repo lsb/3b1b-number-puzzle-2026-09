@@ -6,17 +6,23 @@
 ARG BASE=debian:bookworm-slim
 FROM ${BASE}
 
-RUN apt-get update \
- && apt-get install -y --no-install-recommends ca-certificates curl git python3 zstd \
- && rm -rf /var/lib/apt/lists/*
+# Install the tools the build needs, unless the base image already has them.
+RUN missing=""; \
+    for tool in curl git python3 unzip; do command -v "$tool" >/dev/null || missing="$missing $tool"; done; \
+    if [ -n "$missing" ]; then \
+      apt-get update \
+      && apt-get install -y --no-install-recommends ca-certificates $missing \
+      && rm -rf /var/lib/apt/lists/*; \
+    fi
 
 WORKDIR /proof
 
 # Lean, at the version pinned in lean-toolchain, straight from the GitHub release.
 COPY lean-toolchain ./
 RUN version="$(sed 's/.*:v//' lean-toolchain)" \
- && curl -sSfL "https://github.com/leanprover/lean4/releases/download/v${version}/lean-${version}-linux.tar.zst" \
-    | tar --zstd -x -C /opt \
+ && curl -sSfL -o /tmp/lean.zip "https://github.com/leanprover/lean4/releases/download/v${version}/lean-${version}-linux.zip" \
+ && unzip -q /tmp/lean.zip -d /opt \
+ && rm /tmp/lean.zip \
  && ln -s "/opt/lean-${version}-linux" /opt/lean
 ENV PATH=/opt/lean/bin:$PATH
 
