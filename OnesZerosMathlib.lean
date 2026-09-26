@@ -23,7 +23,7 @@ open Nat
 def R (c : ℕ) : ℕ := ofDigits 10 (List.replicate c 1)
 
 theorem R_add (a c : ℕ) : R (a + c) = R a + 10 ^ a * R c := by
-  simp [R, List.replicate_add, ofDigits_append]
+  rw [R, R, R, List.replicate_add, ofDigits_append, List.length_replicate]
 
 /-- `ofDigits` inverts `digits` for a list of `a` zeros followed by `c ≥ 1` ones. -/
 theorem digits_zeros_ones (a c : ℕ) (hc : 0 < c) :
