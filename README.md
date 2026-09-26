@@ -19,6 +19,17 @@ Neither uses `sorry`; both depend only on Lean's standard axioms (`propext`, `Cl
 
 ## Checking the proofs
 
+With Docker, nothing else needs installing:
+
+```
+docker build -t ones-zeros .
+docker run --rm ones-zeros prove              # re-check both Lean files, list their axioms
+docker run --rm ones-zeros multiplier 7 2026  # find multipliers for 7 and 2026
+```
+
+`prove` fails if any proof uses `sorry`. Without Docker, run the same commands via
+`./run.sh prove` or `./run.sh multiplier 7`, or directly:
+
 ```
 lean OnesZeros.lean     # core only, a few seconds
 lake build              # both files; fetches Mathlib
