@@ -64,6 +64,12 @@ theorem R_pos {j : Nat} (h : 0 < j) : 0 < R j := by
   | zero => omega
   | succ j => simp [R]
 
+/-- `R c` has exactly `c` digits: `R c < 10 ^ c`. -/
+theorem R_lt (c : Nat) : R c < 10 ^ c := by
+  induction c with
+  | zero => simp [R]
+  | succ c ih => rw [R, Nat.pow_succ']; omega
+
 /-- `R (a + c) = R c * 10 ^ a + R a`, e.g. `11111 = 111 * 100 + 11`. -/
 theorem R_add (a c : Nat) : R (a + c) = R c * 10 ^ a + R a := by
   induction a with
@@ -133,6 +139,82 @@ theorem every_number_has_zeroOne_multiple (n : Nat) :
     obtain ⟨k, hk, -, hz⟩ := exists_zeroOne_multiple (n + 1) (by omega)
     exact ⟨k, hk, hz⟩
 
+/-! ## Secondary theorem: numbers ending in 1, 3, 7, 9 divide a repunit -/
+
+/-- Every digit of `R c` is `1` (for `i < c`); so `R c` is literally `11…1`. -/
+theorem digit_R {c i : Nat} (h : i < c) : digit (R c) i = 1 := by
+  induction c generalizing i with
+  | zero => omega
+  | succ c ih =>
+    cases i with
+    | zero => simp only [digit, R, Nat.pow_zero, Nat.div_one]; omega
+    | succ i =>
+      have hd : (10 * R c + 1) / 10 = R c := by omega
+      simp only [digit, R] at ih ⊢
+      rw [Nat.pow_succ', ← Nat.div_div_eq_div_mul, hd]
+      exact ih (by omega)
+
+/-- A number ending in 1, 3, 7 or 9 can be cancelled against a factor 10:
+if `n ∣ 10 * m` then `n ∣ m`. (Core Lean has no `Coprime`, so we argue with
+remainders mod 2 and mod 5 directly.) -/
+theorem dvd_of_dvd_ten_mul {n m : Nat} (hn : n % 10 = 1 ∨ n % 10 = 3 ∨ n % 10 = 7 ∨ n % 10 = 9)
+    (h : n ∣ 10 * m) : n ∣ m := by
+  obtain ⟨t, ht⟩ := h
+  -- `t` is even, because `n` is odd and `n * t = 10 * m` is even.
+  have h2 : t % 2 = 0 := by
+    have key : ∀ a, a < 2 → ∀ b, b < 2 → a * b % 2 = 0 → a = 0 ∨ b = 0 := by decide
+    have hm : n % 2 * (t % 2) % 2 = 0 := by rw [← Nat.mul_mod, ← ht]; omega
+    have := key (n % 2) (Nat.mod_lt _ (by omega)) (t % 2) (Nat.mod_lt _ (by omega)) hm
+    omega
+  obtain ⟨t', rfl⟩ : ∃ t', t = 2 * t' := ⟨t / 2, by omega⟩
+  -- `t'` is a multiple of 5, because `5 ∤ n` and `n * t' = 5 * m`.
+  have h5 : t' % 5 = 0 := by
+    have key : ∀ a, a < 5 → ∀ b, b < 5 → a * b % 5 = 0 → a = 0 ∨ b = 0 := by decide
+    have hm : n % 5 * (t' % 5) % 5 = 0 := by
+      rw [← Nat.mul_mod, Nat.mul_left_comm] at *
+      omega
+    have := key (n % 5) (Nat.mod_lt _ (by omega)) (t' % 5) (Nat.mod_lt _ (by omega)) hm
+    omega
+  obtain ⟨u, rfl⟩ : ∃ u, t' = 5 * u := ⟨t' / 5, by omega⟩
+  refine ⟨u, ?_⟩
+  rw [Nat.mul_left_comm n 2, Nat.mul_left_comm n 5] at ht
+  omega
+
+/-- If `n` ends in 1, 3, 7 or 9, some multiple of `n` is a repunit `11…1`
+(with at least one digit): every digit below position `c` is `1`, and every
+digit from position `c` on is `0`. -/
+theorem exists_repunit_multiple (n : Nat)
+    (hn : n % 10 = 1 ∨ n % 10 = 3 ∨ n % 10 = 7 ∨ n % 10 = 9) :
+    ∃ c k, 0 < c ∧ n * k = R c := by
+  have hn0 : 0 < n := by omega
+  obtain ⟨a, b, hab, -, he⟩ :=
+    pigeonhole n (fun j => R j % n) (fun _ _ => Nat.mod_lt _ hn0)
+  obtain ⟨c, rfl⟩ : ∃ c, b = a + c := ⟨b - a, by omega⟩
+  have hdiff : R (a + c) - R a = R c * 10 ^ a := by rw [R_add]; omega
+  have hdvd : n ∣ R c * 10 ^ a := by
+    rw [← hdiff]
+    exact Nat.dvd_of_mod_eq_zero (Nat.sub_mod_eq_zero_of_mod_eq he.symm)
+  -- Strip the trailing zeros one factor of 10 at a time.
+  have strip : ∀ a, n ∣ R c * 10 ^ a → n ∣ R c := by
+    intro a
+    induction a with
+    | zero => simp
+    | succ a ih =>
+      intro h
+      apply ih
+      apply dvd_of_dvd_ten_mul hn
+      rwa [Nat.pow_succ', Nat.mul_left_comm] at h
+  obtain ⟨k, hk⟩ := strip a hdvd
+  exact ⟨c, k, by omega, hk.symm⟩
+
+/-- The repunit statement phrased with digits: `n * k` is positive, its digits below
+position `c` are all `1`, and it has no digits from position `c` on. -/
+theorem exists_all_ones_multiple (n : Nat)
+    (hn : n % 10 = 1 ∨ n % 10 = 3 ∨ n % 10 = 7 ∨ n % 10 = 9) :
+    ∃ c k, 0 < c ∧ (∀ i, i < c → digit (n * k) i = 1) ∧ n * k < 10 ^ c := by
+  obtain ⟨c, k, hc, hk⟩ := exists_repunit_multiple n hn
+  refine ⟨c, k, hc, fun i hi => hk ▸ digit_R hi, hk ▸ R_lt c⟩
+
 /-! ## Sanity checks -/
 
 -- `digit` reads decimal digits right to left: 1203 has digits 3, 0, 2, 1, 0, 0, …
@@ -141,7 +223,8 @@ example : (List.range 6).map (digit 1203) = [3, 0, 2, 1, 0, 0] := by decide
 -- `ZeroOne` rejects numbers with other digits: the last digit of 12 is 2.
 example : ¬ ZeroOne 12 := fun h => absurd (h 0) (by decide)
 
--- A concrete instance: 7 * 1443 = 10101.
+-- Concrete instances: 7 * 1443 = 10101, and 7 * 15873 = 111111 = R 6.
 example : 7 * 1443 = 10101 := by decide
+example : 7 * 15873 = R 6 := by decide
 
 end OnesZeros
